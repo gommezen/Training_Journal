@@ -77,7 +77,7 @@ def render_stats_screen() -> None:
                 "duration_minutes": "Minutes",
             },
         ),
-        use_container_width=True,
+        width="stretch" #use_container_width=True,
     )
 
     # --- Weekly energy ---
@@ -101,7 +101,7 @@ def render_stats_screen() -> None:
             },
             markers=True,
         ),
-        use_container_width=True,
+        width="stretch" #use_container_width=True,
     )
 
     # --- Recent notes ---

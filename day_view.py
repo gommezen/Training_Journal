@@ -3,7 +3,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from db import load_sessions
+from db import load_sessions, soft_delete_by_uuid
 
 
 def render_day_view() -> None:
@@ -41,5 +41,15 @@ def render_day_view() -> None:
 
         if row["notes"]:
             st.markdown(f"**Notes:** {row['notes']}")
+
+        # --- Delete action ---
+        with st.expander("⚠️ Session actions"):
+            if st.button(
+                "🗑 Delete this session",
+                key=f"delete_{row['uuid']}",
+            ):
+                soft_delete_by_uuid(row["uuid"])
+                st.success("Session deleted")
+                st.rerun()
 
         st.divider()

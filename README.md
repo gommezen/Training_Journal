@@ -39,4 +39,5 @@ pip install streamlit pandas plotly
 ### 3. Run the app
 
 streamlit run app.py
+
 ---
