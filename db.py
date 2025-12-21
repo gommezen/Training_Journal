@@ -217,7 +217,6 @@ def local_changes_since(ts: str) -> List[Dict[str, Any]]:
     finally:
         conn.close()
 
-
 def upsert_many(items: List[Dict[str, Any]]) -> int:
     if not items:
         return 0
@@ -226,13 +225,22 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
     try:
         count = 0
         for it in items:
+            # If remote row is deleted → remove locally
+            if int(it.get("deleted", 0)) == 1:
+                conn.execute(
+                    "DELETE FROM training_sessions WHERE uuid = ?",
+                    (it["uuid"],),
+                )
+                continue
+
+            # Otherwise upsert normally
             conn.execute(
                 """
                 INSERT INTO training_sessions (
                     session_date, activity_type, duration_minutes, energy_level,
                     session_emphasis, notes, uuid, deleted, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
                 ON CONFLICT(uuid) DO UPDATE SET
                     session_date=excluded.session_date,
                     activity_type=excluded.activity_type,
@@ -240,7 +248,7 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
                     energy_level=excluded.energy_level,
                     session_emphasis=excluded.session_emphasis,
                     notes=excluded.notes,
-                    deleted=excluded.deleted,
+                    deleted=0,
                     updated_at=excluded.updated_at
                 WHERE excluded.updated_at > training_sessions.updated_at
                 """,
@@ -252,7 +260,6 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
                     it["session_emphasis"],
                     it.get("notes"),
                     it["uuid"],
-                    int(it.get("deleted", 0)),
                     it["updated_at"],
                 ),
             )
@@ -262,6 +269,52 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
         return count
     finally:
         conn.close()
+
+
+# def upsert_many(items: List[Dict[str, Any]]) -> int:
+#     if not items:
+#         return 0
+
+#     conn = get_connection()
+#     try:
+#         count = 0
+#         for it in items:
+#             conn.execute(
+#                 """
+#                 INSERT INTO training_sessions (
+#                     session_date, activity_type, duration_minutes, energy_level,
+#                     session_emphasis, notes, uuid, deleted, updated_at
+#                 )
+#                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+#                 ON CONFLICT(uuid) DO UPDATE SET
+#                     session_date=excluded.session_date,
+#                     activity_type=excluded.activity_type,
+#                     duration_minutes=excluded.duration_minutes,
+#                     energy_level=excluded.energy_level,
+#                     session_emphasis=excluded.session_emphasis,
+#                     notes=excluded.notes,
+#                     deleted=excluded.deleted,
+#                     updated_at=excluded.updated_at
+#                 WHERE excluded.updated_at > training_sessions.updated_at
+#                 """,
+#                 (
+#                     it["session_date"],
+#                     it["activity_type"],
+#                     int(it["duration_minutes"]),
+#                     int(it["energy_level"]),
+#                     it["session_emphasis"],
+#                     it.get("notes"),
+#                     it["uuid"],
+#                     int(it.get("deleted", 0)),
+#                     it["updated_at"],
+#                 ),
+#             )
+#             count += 1
+
+#         conn.commit()
+#         return count
+#     finally:
+#         conn.close()
 
 def soft_delete_by_uuid(uuid: str) -> None:
     conn = get_connection()
