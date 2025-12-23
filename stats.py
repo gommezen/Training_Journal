@@ -1,116 +1,137 @@
+from datetime import date
+from typing import List
+
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 
-from db import load_sessions
-from models import ACTIVITIES
+from db import get_sessions_between
+from time_ranges import resolve_time_range
+from weeks import WeekSummary, build_week_summaries
 
+
+# --------------------------------------------------
+# Public entry point (called from app.py)
+# --------------------------------------------------
 
 def render_stats_screen() -> None:
     st.title("Training Statistics")
 
-    df = load_sessions()
-    if df.empty:
-        st.info("No sessions logged yet.")
-        return
+    # 1. Canonical time range selection
+    range_key = _select_time_range()
 
-    # --- Time normalization ---
-    df["session_date"] = pd.to_datetime(df["session_date"])
+    today = date.today()
+    start, end = resolve_time_range(range_key, today)
 
-    # Stable weekly bucketing (aggregation-safe)
-    # Pandas supports `.dt.to_period()` at runtime, but some type checkers
-    # do not expose it on the `.dt` accessor in their stubs.
-    # Weeks starting Monday (Mon–Sun)
-    df["week"] = df["session_date"].dt.to_period("W-SUN").dt.start_time  # type: ignore[attr-defined]
-    df["week"] = pd.to_datetime(df["week"]).dt.normalize()
+    st.caption(f"Period: {start} → {end}")
 
-
-    # --- Filters ---
-    activity = st.selectbox("Activity", ["All"] + ACTIVITIES)
-    time_range = st.selectbox("Time range", ["4 weeks", "3 months", "6 months"])
-
-    weeks_back = {
-        "4 weeks": 4,
-        "3 months": 12,
-        "6 months": 24,
-    }[time_range]
-
-    cutoff = pd.Timestamp.today() - pd.Timedelta(weeks=weeks_back)
-    df = df[df["session_date"] >= cutoff]
-
-    if activity != "All":
-        df = df[df["activity_type"] == activity]
-
-    if df.empty:
-        st.info("No data for this selection.")
-        return
-
-    # --- Summary metrics ---
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total minutes", int(df["duration_minutes"].sum()))
-    col2.metric("Sessions", len(df))
-    col3.metric("Avg energy", round(df["energy_level"].mean(), 2))
-
-    st.caption(
-        f"Showing {len(df)} sessions from "
-        f"{df['session_date'].min().date()} to {df['session_date'].max().date()}"
+    # 2. Deterministic data load
+    sessions = get_sessions_between(
+        start.isoformat(),
+        end.isoformat(),
     )
 
-    # --- Weekly volume ---
-    weekly_duration = (
-        df.groupby("week", as_index=False)
-        .agg(duration_minutes=("duration_minutes", "sum"))
-        .sort_values("week")
+    if not sessions:
+        st.info("No sessions in this period.")
+        return
+
+    # 3. Build week summaries (domain layer)
+    weeks = build_week_summaries(sessions)
+
+    if not weeks:
+        st.info("No complete weeks in this range.")
+        return
+
+    # Defensive ordering (UI should not rely on internals)
+    weeks = sorted(weeks, key=lambda w: w.start_date)
+
+    # 4. Render views
+    _render_week_overview_table(weeks)
+    _render_week_load_chart(weeks)
+    _render_week_notes_stub()
+
+
+# --------------------------------------------------
+# UI components
+# --------------------------------------------------
+
+def _select_time_range() -> str:
+    labels = {
+        "1w": "1 week",
+        "1m": "1 month",
+        "3m": "3 months",
+        "6m": "6 months",
+    }
+
+    return st.selectbox(
+        "Time range",
+        list(labels.keys()),
+        index=1,
+        format_func=lambda k: labels[k],
     )
 
-    # Create categorical week labels
-    weekly_duration["week_label"] = weekly_duration["week"].dt.strftime("%Y-%m-%d") # type: ignore[attr-defined]
+
+
+def _render_week_overview_table(weeks: List[WeekSummary]) -> None:
+    st.subheader("Week overview")
+
+    rows = []
+    for w in weeks:
+        rows.append({
+            "Week": w.week_id,
+            "Sessions": w.session_count,
+            "Hard sessions": w.hard_sessions,
+            "Minutes": w.total_duration,
+            "Active days": w.active_days,
+            "Max gap (days)": w.max_gap_days,
+            "Δ sessions": _format_delta(w.delta_session_count),
+            "Δ minutes": _format_delta(w.delta_total_duration),
+        })
+
+    df = pd.DataFrame(rows)
+
+    st.dataframe(
+        df,
+        width="stretch",
+        hide_index=True,
+    )
+
+
+def _render_week_load_chart(weeks: List[WeekSummary]) -> None:
+    st.subheader("Weekly training load")
+
+    df = pd.DataFrame({
+        "Week": [w.week_id for w in weeks],
+        "Minutes": [w.total_duration for w in weeks],
+    })
 
     st.plotly_chart(
         px.bar(
-            weekly_duration,
-            x="week_label",
-            y="duration_minutes",
-            title="Weekly training volume",
-            labels={
-                "week_label": "Week starting",
-                "duration_minutes": "Minutes",
-            },
+            df,
+            x="Week",
+            y="Minutes",
+            labels={"Minutes": "Total minutes"},
         ),
-        width="stretch" #use_container_width=True,
+        width="stretch",
     )
 
-    # --- Weekly energy ---
-    weekly_energy = (
-        df.groupby("week", as_index=False)
-        .agg(energy_level=("energy_level", "mean"))
-        .sort_values("week")
+
+def _render_week_notes_stub() -> None:
+    st.subheader("Reflection (coming later)")
+    st.caption(
+        "This section will later connect weekly structure with RPE and notes. "
+        "Use the table above to identify weeks worth reflecting on."
     )
 
-    weekly_energy["week_label"] = weekly_energy["week"].dt.strftime("%Y-%m-%d") # type: ignore[attr-defined]
 
-    st.plotly_chart(
-        px.line(
-            weekly_energy,
-            x="week_label",
-            y="energy_level",
-            title="Average energy per week",
-            labels={
-                "week_label": "Week starting",
-                "energy_level": "Energy (1–5)",
-            },
-            markers=True,
-        ),
-        width="stretch" #use_container_width=True,
-    )
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
 
-    # --- Recent notes ---
-    st.subheader("Recent notes")
+def _format_delta(value: int | None) -> str:
+    if value is None:
+        return ""
+    if value > 0:
+        return f"+{value}"
+    return str(value)
 
-    recent = df.sort_values("session_date", ascending=False).head(5)
-
-    for _, row in recent.iterrows():
-        st.markdown(
-            f"**{row['session_date'].date()} – {row['activity_type']}**  \n"
-            f"{row['notes'] if row['notes'] else '_No notes_'}"
-        )

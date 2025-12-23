@@ -61,6 +61,8 @@ def _migrate_training_sessions(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE training_sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
     if "updated_at" not in cols:
         conn.execute("ALTER TABLE training_sessions ADD COLUMN updated_at TEXT")
+    if "rpe" not in cols:
+        conn.execute("ALTER TABLE training_sessions ADD COLUMN rpe INTEGER")    
 
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_training_sessions_uuid "
@@ -162,12 +164,13 @@ def insert_session(session: Dict[str, Any]) -> None:
                 duration_minutes,
                 energy_level,
                 session_emphasis,
+                rpe,
                 notes,
                 uuid,
                 deleted,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
             """,
             (
                 session["session_date"],
@@ -175,6 +178,7 @@ def insert_session(session: Dict[str, Any]) -> None:
                 session["duration_minutes"],
                 session["energy_level"],
                 session["session_emphasis"],
+                session.get("rpe"),      # ✅ optional
                 session.get("notes"),
                 u,
                 updated_at,
@@ -195,6 +199,43 @@ def load_sessions() -> pd.DataFrame:
     finally:
         conn.close()
 
+# ---------------------------------------------------------------------
+# Time-based queries
+# ---------------------------------------------------------------------
+
+def get_sessions_between(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    """
+    Return all non-deleted sessions with session_date between
+    start_date and end_date (inclusive).
+
+    Dates must be ISO strings: YYYY-MM-DD
+    """
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT
+                session_date,
+                activity_type,
+                duration_minutes,
+                energy_level,
+                session_emphasis,
+                notes,
+                uuid,
+                deleted,
+                updated_at
+            FROM training_sessions
+            WHERE deleted = 0
+              AND session_date >= ?
+              AND session_date <= ?
+            ORDER BY session_date ASC
+            """,
+            (start_date, end_date),
+        )
+        cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    finally:
+        conn.close()
 
 # ---------------------------------------------------------------------
 # Sync primitives
@@ -206,7 +247,7 @@ def local_changes_since(ts: str) -> List[Dict[str, Any]]:
         cur = conn.execute(
             """
             SELECT session_date, activity_type, duration_minutes, energy_level,
-                   session_emphasis, notes, uuid, deleted, updated_at
+                   session_emphasis, rpe,notes, uuid, deleted, updated_at
             FROM training_sessions
             WHERE updated_at > ?
             """,
@@ -237,16 +278,25 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
             conn.execute(
                 """
                 INSERT INTO training_sessions (
-                    session_date, activity_type, duration_minutes, energy_level,
-                    session_emphasis, notes, uuid, deleted, updated_at
+                    session_date,
+                    activity_type,
+                    duration_minutes,
+                    energy_level,
+                    session_emphasis,
+                    rpe,
+                    notes,
+                    uuid,
+                    deleted,
+                    updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(uuid) DO UPDATE SET
                     session_date=excluded.session_date,
                     activity_type=excluded.activity_type,
                     duration_minutes=excluded.duration_minutes,
                     energy_level=excluded.energy_level,
                     session_emphasis=excluded.session_emphasis,
+                    rpe=excluded.rpe,
                     notes=excluded.notes,
                     deleted=0,
                     updated_at=excluded.updated_at
@@ -258,11 +308,14 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
                     int(it["duration_minutes"]),
                     int(it["energy_level"]),
                     it["session_emphasis"],
+                    it.get("rpe"),
                     it.get("notes"),
                     it["uuid"],
+                    int(it.get("deleted", 0)),
                     it["updated_at"],
                 ),
             )
+
             count += 1
 
         conn.commit()
@@ -270,51 +323,6 @@ def upsert_many(items: List[Dict[str, Any]]) -> int:
     finally:
         conn.close()
 
-
-# def upsert_many(items: List[Dict[str, Any]]) -> int:
-#     if not items:
-#         return 0
-
-#     conn = get_connection()
-#     try:
-#         count = 0
-#         for it in items:
-#             conn.execute(
-#                 """
-#                 INSERT INTO training_sessions (
-#                     session_date, activity_type, duration_minutes, energy_level,
-#                     session_emphasis, notes, uuid, deleted, updated_at
-#                 )
-#                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-#                 ON CONFLICT(uuid) DO UPDATE SET
-#                     session_date=excluded.session_date,
-#                     activity_type=excluded.activity_type,
-#                     duration_minutes=excluded.duration_minutes,
-#                     energy_level=excluded.energy_level,
-#                     session_emphasis=excluded.session_emphasis,
-#                     notes=excluded.notes,
-#                     deleted=excluded.deleted,
-#                     updated_at=excluded.updated_at
-#                 WHERE excluded.updated_at > training_sessions.updated_at
-#                 """,
-#                 (
-#                     it["session_date"],
-#                     it["activity_type"],
-#                     int(it["duration_minutes"]),
-#                     int(it["energy_level"]),
-#                     it["session_emphasis"],
-#                     it.get("notes"),
-#                     it["uuid"],
-#                     int(it.get("deleted", 0)),
-#                     it["updated_at"],
-#                 ),
-#             )
-#             count += 1
-
-#         conn.commit()
-#         return count
-#     finally:
-#         conn.close()
 
 def soft_delete_by_uuid(uuid: str) -> None:
     conn = get_connection()

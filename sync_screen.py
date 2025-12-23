@@ -15,9 +15,6 @@ from db import (
 # ---------------------------------------------------------------------
 
 def sync_now(base_url: str, sync_token: str) -> Dict[str, Any]:
-    # 🔎 DEBUG — TEMPORARY (REMOVE AFTER DEBUGGING)
-  
-
     session = requests.Session()
     session.headers.update({
         "X-Sync-Token": sync_token,
@@ -61,9 +58,6 @@ def sync_now(base_url: str, sync_token: str) -> Dict[str, Any]:
     r.raise_for_status()
     items = r.json()
 
-    # 🔎 DEBUG — TEMPORARY
-    #print("SYNC PULL ITEMS:", items)
-
     upserted_locally = upsert_many(items)
 
     if items:
@@ -94,14 +88,51 @@ def render_sync_screen() -> None:
 
     st.divider()
 
+    # ---- Persistent sync status banner ----
+    if "last_sync_result" in st.session_state:
+        data = st.session_state["last_sync_result"]
+
+        if data["status"] == "ok":
+            res = data["result"]
+
+            pulled = res.get("pulled", 0)
+            upserted = res.get("upserted_locally", 0)
+            pushed = res.get("pushed", 0)
+
+            total = pulled + upserted + pushed
+
+            if total == 0:
+                st.info("No new sessions to sync")
+            else:
+                parts = []
+                if pulled:
+                    parts.append(f"{pulled} pulled")
+                if upserted:
+                    parts.append(f"{upserted} updated locally")
+                if pushed:
+                    parts.append(f"{pushed} pushed")
+
+                st.success("Synced " + ", ".join(parts))
+
+        else:
+            st.error("Sync failed")
+            st.caption(data["error"])
+
+        st.divider()
+
+    # ---- Sync action ----
     if st.button("Sync now"):
         try:
             res = sync_now(base_url, sync_token)
-            st.success("Sync complete ✅")
-            st.json(res)
-
-            # Force UI refresh so metrics update
+            st.session_state["last_sync_result"] = {
+                "status": "ok",
+                "result": res,
+            }
             st.rerun()
 
         except Exception as e:
-            st.error(f"Sync failed: {e}")
+            st.session_state["last_sync_result"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            st.rerun()
