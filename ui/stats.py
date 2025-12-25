@@ -5,9 +5,9 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 
-from db import get_sessions_between
-from time_ranges import resolve_time_range
-from weeks import WeekSummary, build_week_summaries
+from infrastructure.db import get_sessions_between
+from domain.time_ranges import resolve_time_range
+from domain.weeks import WeekSummary, build_week_summaries
 
 
 # --------------------------------------------------

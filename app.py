@@ -1,10 +1,10 @@
 import streamlit as st
 
-from db import create_table
-from log_screen import render_log_screen
-from stats import render_stats_screen
-from day_view import render_day_view
-from sync_screen import render_sync_screen  # NEW
+from infrastructure.db import create_table
+from ui.log_screen import render_log_screen
+from ui.stats import render_stats_screen
+from ui.day_view import render_day_view
+from ui.sync_screen import render_sync_screen  # NEW
 
 
 def main() -> None:

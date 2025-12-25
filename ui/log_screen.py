@@ -2,8 +2,8 @@ from datetime import date
 
 import streamlit as st
 
-from db import insert_session
-from models import (
+from infrastructure.db import insert_session
+from domain.models import (
     ACTIVITIES,
     ENERGY_LABELS,
     ENERGY_MAP,

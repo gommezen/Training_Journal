@@ -3,7 +3,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from db import load_sessions, soft_delete_by_uuid
+from infrastructure.db import load_sessions, soft_delete_by_uuid
 
 
 def render_day_view() -> None:

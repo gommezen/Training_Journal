@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 import streamlit as st
 
-from db import (
+from infrastructure.db import (
     get_state,
     set_state,
     local_changes_since,
