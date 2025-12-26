@@ -3,8 +3,10 @@ import streamlit as st
 from infrastructure.db import create_table
 from ui.log_screen import render_log_screen
 from ui.stats import render_stats_screen
-from ui.day_view import render_day_view
-from ui.sync_screen import render_sync_screen  # NEW
+from ui.reflection import render_reflection_page
+from ui.sync_screen import render_sync_screen
+from infrastructure.db import update_session_by_uuid
+
 
 
 def main() -> None:
@@ -31,7 +33,7 @@ def main() -> None:
     elif page == "Statistics":
         render_stats_screen()
     elif page == "Reflection":
-        render_day_view()
+        render_reflection_page()
     elif page == "Sync":
         render_sync_screen()
 

@@ -84,7 +84,12 @@ def render_stats_screen() -> None:
 
     # 4. Render views
     _render_week_overview_table(weeks)
+
+    if _should_show_period_composition(range_key):
+        _render_period_activity_composition(sessions)
+
     _render_week_load_chart(weeks, sessions)
+
 
 # --------------------------------------------------
 # UI components
@@ -196,6 +201,77 @@ def _render_week_load_chart(
     st.altair_chart(chart, width="stretch")
 
 
+
+# Period activity composition (for certain ranges)
+def _render_period_activity_composition(sessions) -> None:
+    st.subheader("Activity composition (period total)")
+
+    totals = _aggregate_minutes_by_activity(sessions)
+
+    if not totals:
+        st.info("No activity data to summarise.")
+        return
+
+    df = pd.DataFrame(
+        [{"Activity": k, "Minutes": v} for k, v in totals.items()]
+    )
+
+    total_minutes = int(df["Minutes"].sum())
+
+    donut = (
+        alt.Chart(df)
+        .mark_arc(innerRadius=60, outerRadius=100)
+        .encode(
+            theta=alt.Theta("Minutes:Q"),
+            color=alt.Color(
+                "Activity:N",
+                scale=alt.Scale(
+                    domain=["cardio", "karate", "weights", "run", "rowing"],
+                    range=["#4e79a7", "#f28e2b", "#59a14f", "#76b7b2", "#e15759"],
+                ),
+                #legend=None,  # ← IMPORTANT
+                legend=alt.Legend(
+                    title="Activity",
+                    labelFontSize=11,
+                    titleFontSize=12,
+                    orient="right",
+                    direction="vertical",
+                    offset=20,
+                ),
+               
+            ),
+            tooltip=[
+                alt.Tooltip("Activity:N", title="Activity"),
+                alt.Tooltip("Minutes:Q", title="Minutes"),
+            ],
+        )
+        .properties(width=220, height=220)
+        
+    )
+    
+
+    center_text = alt.Chart(
+        pd.DataFrame(
+            [{"label": f"{total_minutes} min"}]
+        )
+    ).mark_text(
+        fontSize=20,
+        fontWeight="bold",
+        color="white",   # ← THIS LINE
+    ).encode(
+        text="label:N"
+    )
+    
+    col_left, col_spacer = st.columns([4, 5])
+
+    with col_left:
+        st.altair_chart(donut + center_text, width="stretch")
+
+
+
+
+
+
 # --------------------------------------------------
 # Data transformations
 # --------------------------------------------------
@@ -225,15 +301,38 @@ def _weekly_minutes_by_activity(sessions):
 
     return data
 
+# --------------------------------------------------
+# Activities - Period composition visibility
+# --------------------------------------------------
+def _should_show_period_composition(range_key: str) -> bool:
+    return range_key in {"1m", "3m", "6m"}
 
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
 
+# Format delta values with sign
 def _format_delta(value: int | None) -> str:
     if value is None:
         return ""
     if value > 0:
         return f"+{value}"
     return str(value)
+
+from collections import defaultdict
+
+
+# Aggregate total minutes by activity type, excluding rest sessions
+def _aggregate_minutes_by_activity(sessions):
+    totals = defaultdict(int)
+
+    for s in sessions:
+        if s["activity_type"] == "rest":
+            continue
+
+        minutes = s.get("duration_minutes") or 0
+        totals[s["activity_type"]] += minutes
+
+    return totals
+
 

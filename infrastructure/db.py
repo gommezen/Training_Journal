@@ -170,7 +170,7 @@ def insert_session(session: Dict[str, Any]) -> None:
                 deleted,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session["session_date"],
@@ -220,6 +220,7 @@ def get_sessions_between(start_date: str, end_date: str) -> List[Dict[str, Any]]
                 duration_minutes,
                 energy_level,
                 session_emphasis,
+                rpe,
                 notes,
                 uuid,
                 deleted,
@@ -247,7 +248,7 @@ def local_changes_since(ts: str) -> List[Dict[str, Any]]:
         cur = conn.execute(
             """
             SELECT session_date, activity_type, duration_minutes, energy_level,
-                   session_emphasis, rpe,notes, uuid, deleted, updated_at
+                   session_emphasis, rpe, notes, uuid, deleted, updated_at
             FROM training_sessions
             WHERE updated_at > ?
             """,
@@ -339,3 +340,37 @@ def soft_delete_by_uuid(uuid: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+# ---------------------------------------------------------------------
+# Update helpers
+# ---------------------------------------------------------------------
+def update_session_by_uuid(uuid: str, fields: Dict[str, Any]) -> None:
+    if not fields:
+        return
+
+    conn = get_connection()
+    try:
+        sets = []
+        values = []
+
+        for key, value in fields.items():
+            sets.append(f"{key} = ?")
+            values.append(value)
+
+        sets.append("updated_at = ?")
+        values.append(utc_now_sql())
+
+        values.append(uuid)
+
+        conn.execute(
+            f"""
+            UPDATE training_sessions
+            SET {', '.join(sets)}
+            WHERE uuid = ?
+            """,
+            values,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
