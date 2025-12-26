@@ -23,9 +23,9 @@ def render_reflection_page() -> None:
         return
     
     # TEMP DEBUG — inspect SQLite RPE values #delete
-    st.write(
-        sessions_df[["session_date", "activity_type", "rpe"]].head(10)
-    )
+    # st.write(
+    #     sessions_df[["session_date", "activity_type","duration_minutes", "rpe"]].head(15)
+    # )
 
     sessions = sessions_df.to_dict("records")
 
@@ -49,18 +49,34 @@ def render_reflection_page() -> None:
         resolve_current_and_previous_period(range_key, today)
     )
 
+    # Filter sessions into current and previous periods
     cur_sessions = filter_sessions_by_date(sessions, cur_start, cur_end)
     prev_sessions = filter_sessions_by_date(sessions, prev_start, prev_end)
 
+    
+    # Compute summaries (may be partial if RPE is missing)
     cur_summary = compute_period_summary(cur_sessions)
     prev_summary = compute_period_summary(prev_sessions)
+    
+    # Compute deltas (may return None or incomplete dict)
     deltas = compute_phase_deltas(cur_summary, prev_summary)
 
+    # --- Render ---
     if cur_summary:
-        _render_period_summary(cur_start, cur_end, cur_summary)
+        _render_period_summary(
+            cur_start,
+            cur_end,
+            cur_summary,
+        )
 
-    if deltas:
-        _render_phase_deltas(deltas)
+    # Always render comparison section.
+    # Missing values are displayed as "—" inside the renderer.
+    _render_phase_deltas(deltas or {})
+    
+    # DEBUG
+    # st.write("DEBUG cur_summary:", cur_summary)
+    # st.write("DEBUG prev_summary:", prev_summary)
+    # st.write("DEBUG deltas:", deltas)
 
     st.divider()
 
@@ -85,19 +101,42 @@ def _render_period_summary(start, end, summary):
 
 def _render_phase_deltas(deltas):
     st.subheader("Period comparison")
+
     st.markdown("**Load & volume**")
     cols = st.columns(2)
-    cols[0].metric("Δ minutes", deltas["delta_minutes"])
-    cols[1].metric("Δ load density", deltas["delta_load_density"] or "—")
+    cols[0].metric(
+        "Δ minutes",
+        deltas.get("delta_minutes", "—")
+    )
+    cols[1].metric(
+        "Δ load density",
+        deltas.get("delta_load_density") or "—"
+    )
 
     st.markdown("**Rhythm & continuity**")
     cols = st.columns(2)
-    cols[0].metric("Δ active days", deltas["delta_active_days"])
-    cols[1].metric("Δ max gap", deltas["delta_max_gap"])
+    cols[0].metric(
+        "Δ active days",
+        deltas.get("delta_active_days", "—")
+    )
+    cols[1].metric(
+        "Δ max gap",
+        deltas.get("delta_max_gap", "—")
+    )
+
+    if deltas.get("dominant_activity_changed"):
+        st.caption(
+            "Activity emphasis changed compared to previous period."
+        )
+    
+    # delete this block if not needed
+    if not deltas:
+        st.caption(
+            "No previous period available for comparison."
+        )
+        return
 
 
-    if deltas["dominant_activity_changed"]:
-        st.caption("Activity emphasis changed compared to previous period.")
 
 #--------------------------------------------------
 # Daily / session review

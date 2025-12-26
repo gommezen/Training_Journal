@@ -28,14 +28,14 @@ def render_stats_screen() -> None:
             **This page shows weekly training load and rhythm.**
 
             **Week**
-            - ISO calendar week (Monday–Sunday).
+            - ISO calendar week (Monday-Sunday).
 
             **Sessions**
-            - Number of recorded training sessions that week.
+            - Number of recorded training sessions that week (including rest days).
 
             **Hard sessions**
-            - Sessions marked as high intensity  
-            (currently inferred from session emphasis; RPE support is prepared).
+            - Sessions marked as high intensity 
+            (Number of sessions with RPE ≥ threshold (e.g. 7)).
 
             **Minutes**
             - Total recorded training duration for the week.
@@ -44,12 +44,12 @@ def render_stats_screen() -> None:
             - Number of distinct days with at least one session.
 
             **Max gap (days)**
-            - Longest consecutive break between training days within the week.
+            - Longest consecutive break between active days within the week.
 
             **Δ sessions / Δ minutes**
             - Change compared to the previous week.
 
-            These metrics describe **load, frequency, and continuity** —
+            These metrics describe **load, intensity, and continuity** —
             not performance or outcomes.
             """
         )
@@ -216,8 +216,10 @@ def _render_period_activity_composition(sessions) -> None:
         [{"Activity": k, "Minutes": v} for k, v in totals.items()]
     )
 
+    
     total_minutes = int(df["Minutes"].sum())
-
+    
+    
     donut = (
         alt.Chart(df)
         .mark_arc(innerRadius=60, outerRadius=100)

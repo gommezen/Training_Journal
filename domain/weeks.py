@@ -19,6 +19,9 @@ class WeekSummary:
 
     hard_sessions: int
     energy1_sessions: int
+    
+    training_load: int            # ← ADD
+    avg_rpe: float | None         # ← OPTIONAL
 
     active_days: int
     max_gap_days: int
@@ -27,11 +30,11 @@ class WeekSummary:
     delta_total_duration: int | None
     delta_hard_sessions: int | None
 
-def is_hard_session(session: dict) -> bool:
-    """
-    A session is 'hard' if it is energetically or cognitively demanding.
-    """
-    return session["energy_level"] >= 3
+# def is_hard_session(session: dict) -> bool:
+#     """
+#     A session is 'hard' if it is energetically or cognitively demanding.
+#     """
+#     return session["energy_level"] >= 3
 
 
 def _iso_week_start(d: date) -> date:
@@ -124,13 +127,37 @@ def build_week_summaries(sessions: list[dict]) -> list[WeekSummary]:
             s["activity_type"] for s in week_sessions
         )
 
-        hard_sessions = sum(
-            1 for s in week_sessions if is_hard_session(s)
-        )
+        # hard_sessions = sum(
+        #     1 for s in week_sessions if is_hard_session(s)
+        # )
 
         energy1_sessions = sum(
             1 for s in week_sessions if s["energy_level"] == 1
         )
+        
+        HARD_RPE_THRESHOLD = 7
+
+        # --- RPE-aware metrics (explicit intensity) ---
+        rpe_sessions = [
+            s for s in week_sessions
+            if s.get("rpe") is not None
+        ]
+
+        hard_sessions = sum(
+            1 for s in rpe_sessions
+            if s["rpe"] >= HARD_RPE_THRESHOLD
+        )
+
+        training_load = sum(
+            s["duration_minutes"] * s["rpe"]
+            for s in rpe_sessions
+        )
+
+        avg_rpe = (
+            sum(s["rpe"] for s in rpe_sessions) / len(rpe_sessions)
+            if rpe_sessions else None
+        )
+
 
         # --- active days & gaps ---
         days = sorted(
@@ -162,6 +189,9 @@ def build_week_summaries(sessions: list[dict]) -> list[WeekSummary]:
 
             hard_sessions=hard_sessions,
             energy1_sessions=energy1_sessions,
+            
+            training_load=training_load,
+            avg_rpe=avg_rpe,
 
             active_days=active_days,
             max_gap_days=max_gap,
