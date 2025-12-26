@@ -22,7 +22,7 @@ def render_stats_screen() -> None:
     # ------------------------------------------------
     # Statistics explanation
     # ------------------------------------------------
-    with st.expander("Understanding these statistics", expanded=True):
+    with st.expander("Understanding these statistics", expanded=False):
         st.markdown(
             """
             **This page shows weekly training load and rhythm.**
