@@ -1,13 +1,12 @@
-# Karate Training Journal
-
-A lightweight training journal
-**training, rest, and reflection** in one place.
+# a lightweight training journal
 
 The app combines:
 - quick session logging
 - explicit rest days
 - daily reflection
-- simple weekly statistics
+- weekly and period-based summaries
+- explicit perceived effort (RPE)
+- derived training load and rhythm metrics
 
 It is designed to support *thinking about training*.
 
@@ -16,11 +15,26 @@ It is designed to support *thinking about training*.
 ## What this app is for
 
 - Logging Karate, strength, running, rowing, cardio, and rest
-- Recording perceived energy and session emphasis
-- Reviewing what happened on a specific day (“Reflection”)
-- Seeing weekly training volume and energy trends
+- Recording perceived effort (RPE) alongside duration
+- Reflecting on individual training days
+- Reviewing training rhythm, volume, and continuity over time
+- Comparing periods only when the data meaningfully allows it
 
-This is a **personal training journal**, not a social platform or a coaching system.
+---
+
+## Core principles
+
+- Effort is explicit, not inferred
+    Intensity is recorded as RPE by the athlete, not guessed from session type.
+
+- Derived metrics are computed, never stored
+    Training load and summaries are calculated from raw data.
+
+- Missing data is shown as missing
+    Undefined comparisons are displayed as —, not silently filled in.
+
+- Reflection comes before optimization
+    The journal supports noticing patterns
 
 ---
 
