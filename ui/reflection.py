@@ -174,16 +174,28 @@ def _render_daily_sessions(sessions) -> None:
         cols[0].metric("Duration", f"{s['duration_minutes']} min")
         cols[1].metric("Energy", s["energy_level"])
         cols[2].metric("Emphasis", s["session_emphasis"])
-
+        
         with cols[3]:
+            current_rpe = s.get("rpe")
+
             new_rpe = st.number_input(
                 "RPE",
                 min_value=1,
                 max_value=10,
-                value=s.get("rpe") or 5,
+                value=int(current_rpe) if current_rpe is not None else 5,
                 step=1,
                 key=f"rpe_{s['uuid']}",
             )
+
+        # with cols[3]:
+        #     new_rpe = st.number_input(
+        #         "RPE",
+        #         min_value=1,
+        #         max_value=10,
+        #         value=s.get("rpe") or 5,
+        #         step=1,
+        #         key=f"rpe_{s['uuid']}",
+        #     )
 
             if new_rpe != s.get("rpe"):
                 if st.button("Save", key=f"save_rpe_{s['uuid']}"):
