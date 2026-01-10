@@ -198,7 +198,8 @@ def _render_week_load_chart(
 )
 
 
-    st.altair_chart(chart, width="stretch")
+    st.altair_chart(chart, use_container_width=True)
+
 
 
 
@@ -267,7 +268,9 @@ def _render_period_activity_composition(sessions) -> None:
     col_left, col_spacer = st.columns([4, 5])
 
     with col_left:
-        st.altair_chart(donut + center_text, width="stretch")
+        #st.altair_chart(donut + center_text, width="stretch")
+        st.altair_chart(donut + center_text, use_container_width=True)
+
 
 
 
